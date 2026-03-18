@@ -1,0 +1,111 @@
+// SIM7600 GPS + Tower Location Sender
+// Sends data to your Render server every 30 seconds
+
+#define SERVER_URL "https://YOUR-APP.onrender.com/update"  // <-- apna URL daalo
+
+#include <HardwareSerial.h>
+
+HardwareSerial sim(1); // UART1
+
+String gps_lat = "", gps_lng = "";
+String mcc = "", mnc = "", lac = "", cid = "";
+
+void setup() {
+  Serial.begin(115200);
+  sim.begin(115200, SERIAL_8N1, 16, 17); // RX=16, TX=17
+  delay(3000);
+
+  sendAT("AT");
+  sendAT("AT+CGNSPWR=1");     // GPS on
+  sendAT("AT+CGDCONT=1,\"IP\",\"jazz\"");  // Jazz APN
+  sendAT("AT+CGACT=1,1");     // 4G activate
+  delay(5000);
+}
+
+void loop() {
+  getGPS();
+  getTower();
+  sendToServer();
+  delay(30000); // 30 second interval
+}
+
+void getGPS() {
+  sim.println("AT+CGNSINF");
+  delay(1000);
+  String resp = sim.readString();
+  // Parse: +CGNSINF: 1,1,date,lat,lng,...
+  if (resp.indexOf("+CGNSINF:") >= 0) {
+    int commas = 0;
+    String token = "";
+    for (char c : resp) {
+      if (c == ',') {
+        commas++;
+        if (commas == 3) gps_lat = token;
+        if (commas == 4) { gps_lng = token; break; }
+        token = "";
+      } else {
+        token += c;
+      }
+    }
+  }
+}
+
+void getTower() {
+  sim.println("AT+CREG=2");
+  delay(500);
+  sim.println("AT+CREG?");
+  delay(1000);
+  String resp = sim.readString();
+  // Parse: +CREG: 2,1,"LAC","CID",7
+  if (resp.indexOf("+CREG:") >= 0) {
+    // Simple extraction
+    int q1 = resp.indexOf('"');
+    int q2 = resp.indexOf('"', q1+1);
+    int q3 = resp.indexOf('"', q2+1);
+    int q4 = resp.indexOf('"', q3+1);
+    if (q1 > 0) {
+      lac = resp.substring(q1+1, q2);
+      cid = resp.substring(q3+1, q4);
+    }
+    // MCC/MNC for Jazz Pakistan
+    mcc = "410";
+    mnc = "1";
+  }
+}
+
+void sendToServer() {
+  String body = "{";
+  if (gps_lat != "") {
+    body += "\"gps_lat\":" + gps_lat + ",\"gps_lng\":" + gps_lng + ",";
+  }
+  if (lac != "") {
+    body += "\"mcc\":" + mcc + ",\"mnc\":" + mnc + ",\"lac\":" + lac + ",\"cid\":" + cid;
+  }
+  body += "}";
+
+  // Remove trailing comma if needed
+  body.replace(",}", "}");
+
+  String cmd = "AT+HTTPINIT";
+  sendAT(cmd);
+  sendAT("AT+HTTPPARA=\"CID\",1");
+  sendAT("AT+HTTPPARA=\"URL\",\"" + String(SERVER_URL) + "\"");
+  sendAT("AT+HTTPPARA=\"CONTENT\",\"application/json\"");
+  
+  sim.println("AT+HTTPDATA=" + String(body.length()) + ",10000");
+  delay(2000);
+  sim.print(body);
+  delay(2000);
+  
+  sendAT("AT+HTTPACTION=1"); // POST
+  delay(5000);
+  sendAT("AT+HTTPTERM");
+  
+  Serial.println("Sent: " + body);
+}
+
+void sendAT(String cmd) {
+  sim.println(cmd);
+  delay(1000);
+  while (sim.available()) Serial.write(sim.read());
+}
