@@ -10,7 +10,7 @@ latest = {
     "tower": None     # {"lat": ..., "lng": ...}
 }
 
-VERIFY_TOKEN = "GPS" ("VERIFY_TOKEN", "GPS")
+VERIFY_TOKEN = os.environ.get("VERIFY_TOKEN", "GPS")
 PAGE_ACCESS_TOKEN = os.environ.get("PAGE_ACCESS_TOKEN", "")
 UNWIREDLABS_TOKEN = os.environ.get("UNWIREDLABS_TOKEN", "")
 
