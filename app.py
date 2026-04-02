@@ -55,34 +55,32 @@ def get_tower_location(mcc, mnc, lac, cid):
 
 # ─── Facebook Webhook ───────────────────────────────────────────────────────────
 
-@app.route("/webhook", methods=["GET"])
-def verify():
-    if request.args.get("hub.verify_token") == VERIFY_TOKEN:
-        return request.args.get("hub.challenge")
-    return "Invalid token", 403
-
-
-@app.route("/webhook", methods=["POST"])
+@app.route("/webhook", methods=["GET", "POST"])
 def webhook():
-    data = request.json
-    for entry in data.get("entry", []):
-        for event in entry.get("messaging", []):
-            sender_id = event["sender"]["id"]
+    if request.method == "GET":
+        if request.args.get("hub.verify_token") == VERIFY_TOKEN:
+            return request.args.get("hub.challenge")
+        return "Invalid token", 403
+    
+    if request.method == "POST":
+        data = request.json
+        for entry in data.get("entry", []):
+            for event in entry.get("messaging", []):
+                sender_id = event["sender"]["id"]
 
-            if "message" in event:
-                text = event["message"].get("text", "").lower()
-                if "location" in text or "gps" in text or "kahan" in text:
-                    send_location_buttons(sender_id)
+                if "message" in event:
+                    text = event["message"].get("text", "").lower()
+                    if "location" in text or "gps" in text or "kahan" in text:
+                        send_location_buttons(sender_id)
 
-            elif "postback" in event:
-                payload = event["postback"]["payload"]
-                if payload == "GET_GPS":
-                    send_map_link(sender_id, "gps")
-                elif payload == "GET_TOWER":
-                    send_map_link(sender_id, "tower")
+                elif "postback" in event:
+                    payload = event["postback"]["payload"]
+                    if payload == "GET_GPS":
+                        send_map_link(sender_id, "gps")
+                    elif payload == "GET_TOWER":
+                        send_map_link(sender_id, "tower")
 
-    return "OK", 200
-
+        return "OK", 200
 
 def send_location_buttons(sender_id):
     msg = {
