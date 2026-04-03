@@ -59,11 +59,9 @@ def update_location():
     # Publish to MQTT
     try:
         if latest["gps"]:
-            mqtt_client.publish("gps-tracker/location/gps", 
-                              json.dumps(latest["gps"]))
+            mqtt_client.publish("gps", json.dumps(latest["gps"]))
         if latest["tower"]:
-            mqtt_client.publish("gps-tracker/location/tower", 
-                              json.dumps(latest["tower"]))
+            mqtt_client.publish("tower", json.dumps(latest["tower"]))
     except Exception as e:
         print(f"MQTT publish error: {e}")
 
