@@ -1,6 +1,8 @@
 from flask import Flask, request, jsonify
 import requests
 import os
+import paho.mqtt.client as mqtt
+import json
 
 app = Flask(__name__)
 
@@ -13,6 +15,27 @@ latest = {
 VERIFY_TOKEN = os.environ.get("VERIFY_TOKEN", "GPS")
 PAGE_ACCESS_TOKEN = os.environ.get("PAGE_ACCESS_TOKEN", "")
 UNWIREDLABS_TOKEN = os.environ.get("UNWIREDLABS_TOKEN", "")
+
+# HiveMQ MQTT Configuration
+HIVEMQ_BROKER = os.environ.get("HIVEMQ_BROKER", "")
+HIVEMQ_PORT = int(os.environ.get("HIVEMQ_PORT", 8883))
+HIVEMQ_USER = os.environ.get("HIVEMQ_USER", "")
+HIVEMQ_PASS = os.environ.get("HIVEMQ_PASS", "")
+
+# MQTT Client Setup
+mqtt_client = mqtt.Client(client_id="gps-bot")
+mqtt_client.username_pw_set(HIVEMQ_USER, HIVEMQ_PASS)
+mqtt_client.tls_set()  # Enable TLS for port 8883
+
+def mqtt_connect():
+    try:
+        mqtt_client.connect(HIVEMQ_BROKER, HIVEMQ_PORT, keepalive=60)
+        mqtt_client.loop_start()
+        print("✅ Connected to HiveMQ")
+    except Exception as e:
+        print(f"❌ HiveMQ connection failed: {e}")
+
+mqtt_connect()
 
 
 # ─── SIM7600 sends location here ───────────────────────────────────────────────
@@ -32,6 +55,17 @@ def update_location():
         )
         if tower_location:
             latest["tower"] = tower_location
+
+    # Publish to MQTT
+    try:
+        if latest["gps"]:
+            mqtt_client.publish("gps-tracker/location/gps", 
+                              json.dumps(latest["gps"]))
+        if latest["tower"]:
+            mqtt_client.publish("gps-tracker/location/tower", 
+                              json.dumps(latest["tower"]))
+    except Exception as e:
+        print(f"MQTT publish error: {e}")
 
     return jsonify({"status": "ok"})
 
