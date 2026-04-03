@@ -1,3 +1,4 @@
 flask
 requests
 gunicorn
+paho-mqtt==1.7.1
