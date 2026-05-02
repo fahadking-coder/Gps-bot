@@ -8,8 +8,8 @@ app = Flask(__name__)
 
 # Store latest locations
 latest = {
-    "gps": None,      # {"lat": ..., "lng": ...}
-    "tower": None     # {"lat": ..., "lng": ...}
+    "gps": None,
+    "tower": None
 }
 
 VERIFY_TOKEN = os.environ.get("VERIFY_TOKEN", "GPS")
@@ -25,30 +25,35 @@ HIVEMQ_PASS = os.environ.get("HIVEMQ_PASS", "")
 # MQTT Client Setup
 mqtt_client = mqtt.Client(client_id="gps-bot")
 mqtt_client.username_pw_set(HIVEMQ_USER, HIVEMQ_PASS)
-mqtt_client.tls_set()  # Enable TLS for port 8883
+mqtt_client.tls_set()
 
 def mqtt_connect():
     try:
         mqtt_client.connect(HIVEMQ_BROKER, HIVEMQ_PORT, keepalive=60)
         mqtt_client.loop_start()
-        print("✅ Connected to HiveMQ")
+        print("Connected to HiveMQ")
     except Exception as e:
-        print(f"❌ HiveMQ connection failed: {e}")
+        print(f"HiveMQ connection failed: {e}")
 
 mqtt_connect()
 
 
-# ─── SIM7600 sends location here ───────────────────────────────────────────────
+@app.route("/")
+def index():
+    return send_from_directory("dist", "index.html")
+
+@app.route("/<path:path>")
+def static_files(path):
+    return send_from_directory("dist", path)
+
 
 @app.route("/update", methods=["POST"])
 def update_location():
     data = request.json
 
-    # GPS location
     if "gps_lat" in data and "gps_lng" in data:
         latest["gps"] = {"lat": data["gps_lat"], "lng": data["gps_lng"]}
 
-    # Cell Tower → convert to coordinates via UnwiredLabs
     if "mcc" in data and "mnc" in data and "lac" in data and "cid" in data:
         tower_location = get_tower_location(
             data["mcc"], data["mnc"], data["lac"], data["cid"]
@@ -56,7 +61,6 @@ def update_location():
         if tower_location:
             latest["tower"] = tower_location
 
-    # Publish to MQTT
     try:
         if latest["gps"]:
             mqtt_client.publish("gps", json.dumps(latest["gps"]))
@@ -85,15 +89,13 @@ def get_tower_location(mcc, mnc, lac, cid):
     return None
 
 
-# ─── Facebook Webhook ───────────────────────────────────────────────────────────
-
 @app.route("/webhook", methods=["GET", "POST"])
 def webhook():
     if request.method == "GET":
         if request.args.get("hub.verify_token") == VERIFY_TOKEN:
             return request.args.get("hub.challenge")
         return "Invalid token", 403
-    
+
     if request.method == "POST":
         data = request.json
         for entry in data.get("entry", []):
@@ -127,12 +129,12 @@ def send_location_buttons(sender_id):
                     "buttons": [
                         {
                             "type": "postback",
-                            "title": "📡 GPS (Exact)",
+                            "title": "GPS (Exact)",
                             "payload": "GET_GPS"
                         },
                         {
                             "type": "postback",
-                            "title": "📶 Tower (Approximate)",
+                            "title": "Tower (Approximate)",
                             "payload": "GET_TOWER"
                         }
                     ]
@@ -151,7 +153,7 @@ def send_map_link(sender_id, loc_type):
 
     label = "GPS (Exact)" if loc_type == "gps" else "Tower (Approximate)"
     maps_link = f"https://maps.google.com/?q={loc['lat']},{loc['lng']}"
-    send_text(sender_id, f"📍 {label} Location:\n{maps_link}")
+    send_text(sender_id, f"{label} Location:\n{maps_link}")
 
 
 def send_text(sender_id, text):
@@ -169,5 +171,5 @@ def send_message(payload):
     )
 
 
-@app.route("/")
+if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
