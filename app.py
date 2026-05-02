@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 import requests
 import os
 import paho.mqtt.client as mqtt
@@ -169,5 +169,5 @@ def send_message(payload):
     )
 
 
-if __name__ == "__main__":
+@app.route("/")
     app.run(host="0.0.0.0", port=5000)
