@@ -42,9 +42,17 @@ mqtt_connect()
 def index():
     return send_from_directory("dist", "index.html")
 
-@app.route("/<path:path>")
-def static_files(path):
-    return send_from_directory("dist", path)
+@app.route("/assets/<path:path>")
+def assets(path):
+    return send_from_directory("dist/assets", path)
+
+@app.route("/favicon.svg")
+def favicon():
+    return send_from_directory("dist", "favicon.svg")
+
+@app.route("/icons.svg")
+def icons():
+    return send_from_directory("dist", "icons.svg")
 
 
 @app.route("/update", methods=["POST"])
